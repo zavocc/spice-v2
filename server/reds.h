@@ -95,7 +95,6 @@ void reds_on_client_semi_seamless_migrate_complete(RedsState *reds, RedClient *c
 void reds_on_client_seamless_migrate_complete(RedsState *reds, RedClient *client);
 void reds_on_main_channel_migrate(RedsState *reds, MainChannelClient *mcc);
 
-void reds_set_client_mm_time_latency(RedsState *reds, RedClient *client, uint32_t latency);
 uint32_t reds_get_streaming_video(const RedsState *reds);
 GArray* reds_get_video_codecs(const RedsState *reds);
 spice_wan_compression_t reds_get_jpeg_state(const RedsState *reds);

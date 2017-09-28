@@ -53,7 +53,6 @@
 enum {
     MAIN_DISPATCHER_CHANNEL_EVENT = 0,
     MAIN_DISPATCHER_MIGRATE_SEAMLESS_DST_COMPLETE,
-    MAIN_DISPATCHER_SET_MM_TIME_LATENCY,
     MAIN_DISPATCHER_CLIENT_DISCONNECT,
 
     MAIN_DISPATCHER_NUM_MESSAGES
@@ -66,11 +65,6 @@ struct MainDispatcherChannelEventMessage {
 
 struct MainDispatcherMigrateSeamlessDstCompleteMessage {
     RedClient *client;
-};
-
-struct MainDispatcherMmTimeLatencyMessage {
-    RedClient *client;
-    uint32_t latency;
 };
 
 struct MainDispatcherClientDisconnectMessage {
@@ -111,15 +105,6 @@ static void main_dispatcher_handle_migrate_complete(void *opaque,
     mig_complete->client->unref();
 }
 
-static void main_dispatcher_handle_mm_time_latency(void *opaque,
-                                                   void *payload)
-{
-    auto reds = static_cast<RedsState *>(opaque);
-    auto msg = static_cast<MainDispatcherMmTimeLatencyMessage *>(payload);
-    reds_set_client_mm_time_latency(reds, msg->client, msg->latency);
-    msg->client->unref();
-}
-
 static void main_dispatcher_handle_client_disconnect(void *opaque,
                                                      void *payload)
 {
@@ -142,20 +127,6 @@ void MainDispatcher::seamless_migrate_dst_complete(RedClient *client)
 
     msg.client = red::add_ref(client);
     send_message(MAIN_DISPATCHER_MIGRATE_SEAMLESS_DST_COMPLETE, &msg);
-}
-
-void MainDispatcher::set_mm_time_latency(RedClient *client, uint32_t latency)
-{
-    MainDispatcherMmTimeLatencyMessage msg;
-
-    if (pthread_self() == thread_id) {
-        reds_set_client_mm_time_latency(reds, client, latency);
-        return;
-    }
-
-    msg.client = red::add_ref(client);
-    msg.latency = latency;
-    send_message(MAIN_DISPATCHER_SET_MM_TIME_LATENCY, &msg);
 }
 
 void MainDispatcher::client_disconnect(RedClient *client)
@@ -190,9 +161,6 @@ MainDispatcher::MainDispatcher(RedsState *init_reds):
     register_handler(MAIN_DISPATCHER_MIGRATE_SEAMLESS_DST_COMPLETE,
                      main_dispatcher_handle_migrate_complete,
                      sizeof(MainDispatcherMigrateSeamlessDstCompleteMessage), false);
-    register_handler(MAIN_DISPATCHER_SET_MM_TIME_LATENCY,
-                     main_dispatcher_handle_mm_time_latency,
-                     sizeof(MainDispatcherMmTimeLatencyMessage), false);
     register_handler(MAIN_DISPATCHER_CLIENT_DISCONNECT,
                      main_dispatcher_handle_client_disconnect,
                      sizeof(MainDispatcherClientDisconnectMessage), false);

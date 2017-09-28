@@ -566,32 +566,6 @@ void video_stream_maintenance(DisplayChannel *display,
     }
 }
 
-static void dcc_update_streams_max_latency(DisplayChannelClient *dcc,
-                                           VideoStreamAgent *remove_agent)
-{
-    uint32_t new_max_latency = 0;
-    int i;
-
-    if (dcc_get_max_stream_latency(dcc) != remove_agent->client_required_latency) {
-        return;
-    }
-
-    dcc_set_max_stream_latency(dcc, 0);
-    if (DCC_TO_DC(dcc)->priv->stream_count == 1) {
-        return;
-    }
-    for (i = 0; i < NUM_STREAMS; i++) {
-        VideoStreamAgent *other_agent = dcc_get_video_stream_agent(dcc, i);
-        if (other_agent == remove_agent || !other_agent->video_encoder) {
-            continue;
-        }
-        if (other_agent->client_required_latency > new_max_latency) {
-            new_max_latency = other_agent->client_required_latency;
-        }
-    }
-    dcc_set_max_stream_latency(dcc, new_max_latency);
-}
-
 static uint64_t get_initial_bit_rate(DisplayChannelClient *dcc, VideoStream *stream)
 {
     char *env_bit_rate_str;
@@ -669,19 +643,6 @@ static uint32_t get_source_fps(void *opaque)
 
 static void update_client_playback_delay(void *opaque, uint32_t delay_ms)
 {
-    auto agent = static_cast<VideoStreamAgent *>(opaque);
-    DisplayChannelClient *dcc = agent->dcc;
-    RedClient *client = dcc->get_client();
-    RedsState *reds = client->get_server();
-
-    dcc_update_streams_max_latency(dcc, agent);
-
-    agent->client_required_latency = delay_ms;
-    if (delay_ms > dcc_get_max_stream_latency(dcc)) {
-        dcc_set_max_stream_latency(dcc, delay_ms);
-    }
-    spice_debug("resetting client latency: %u", dcc_get_max_stream_latency(dcc));
-    reds_get_main_dispatcher(reds)->set_mm_time_latency(client, dcc_get_max_stream_latency(dcc));
 }
 
 static void bitmap_ref(gpointer data)
@@ -775,9 +736,6 @@ void dcc_create_stream(DisplayChannelClient *dcc, VideoStream *stream)
 
 void video_stream_agent_stop(VideoStreamAgent *agent)
 {
-    DisplayChannelClient *dcc = agent->dcc;
-
-    dcc_update_streams_max_latency(dcc, agent);
     if (agent->video_encoder) {
         agent->video_encoder->destroy(agent->video_encoder);
         agent->video_encoder = nullptr;

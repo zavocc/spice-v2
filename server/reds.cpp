@@ -1852,7 +1852,7 @@ static void reds_handle_main_link(RedsState *reds, RedLinkInfo *link)
     if (!mig_target) {
         mcc->push_init(reds->qxl_instances.size(), reds->mouse_mode,
                        reds->is_client_mouse_allowed,
-                       reds_get_mm_time() - MM_TIME_DELTA,
+                       reds_get_mm_time(),
                        reds_qxl_ram_size(reds));
         if (reds->config->spice_name)
             mcc->push_name(reds->config->spice_name);
@@ -1974,7 +1974,7 @@ void reds_on_client_semi_seamless_migrate_complete(RedsState *reds, RedClient *c
     // TODO: not doing net test. consider doing it on client_migrate_info
     mcc->push_init(reds->qxl_instances.size(), reds->mouse_mode,
                    reds->is_client_mouse_allowed,
-                   reds_get_mm_time() - MM_TIME_DELTA,
+                   reds_get_mm_time(),
                    reds_qxl_ram_size(reds));
     reds_link_mig_target_channels(reds, client);
     mcc->migrate_dst_complete();
@@ -2601,24 +2601,7 @@ static void reds_send_mm_time(RedsState *reds)
         return;
     }
     spice_debug("trace");
-    reds->main_channel->push_multi_media_time(reds_get_mm_time() - reds->mm_time_latency);
-}
-
-void reds_set_client_mm_time_latency(RedsState *reds, RedClient *client, uint32_t latency)
-{
-    // TODO: multi-client support for mm_time
-    if (reds->mm_time_enabled) {
-        // TODO: consider network latency
-        if (latency > reds->mm_time_latency) {
-            reds->mm_time_latency = latency;
-            reds_send_mm_time(reds);
-        } else {
-            spice_debug("new latency %u is smaller than existing %u",
-                        latency, reds->mm_time_latency);
-        }
-    } else {
-        snd_set_playback_latency(client, latency);
-    }
+    reds->main_channel->push_multi_media_time(reds_get_mm_time());
 }
 
 static void reds_cleanup_net(SpiceServer *reds)
@@ -3059,7 +3042,6 @@ uint32_t reds_get_mm_time(void)
 void reds_enable_mm_time(RedsState *reds)
 {
     reds->mm_time_enabled = TRUE;
-    reds->mm_time_latency = MM_TIME_DELTA;
     reds_send_mm_time(reds);
 }
 

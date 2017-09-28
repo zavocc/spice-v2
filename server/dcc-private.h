@@ -64,7 +64,6 @@ struct DisplayChannelClientPrivate
     std::array<QRegion, NUM_SURFACES> surface_client_lossy_region;
 
     std::array<VideoStreamAgent, NUM_STREAMS> stream_agents;
-    uint32_t streams_max_latency;
     uint64_t streams_max_bit_rate;
     bool gl_draw_ongoing;
 };

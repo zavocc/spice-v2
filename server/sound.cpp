@@ -56,7 +56,6 @@ enum SndCommand {
 enum PlaybackCommand {
     SND_PLAYBACK_MODE = SND_END_COMMAND,
     SND_PLAYBACK_PCM,
-    SND_PLAYBACK_LATENCY,
 };
 
 #define SND_MIGRATE_MASK (1 << SND_MIGRATE)
@@ -67,7 +66,6 @@ enum PlaybackCommand {
 
 #define SND_PLAYBACK_MODE_MASK (1 << SND_PLAYBACK_MODE)
 #define SND_PLAYBACK_PCM_MASK (1 << SND_PLAYBACK_PCM)
-#define SND_PLAYBACK_LATENCY_MASK ( 1 << SND_PLAYBACK_LATENCY)
 
 class SndChannelClient;
 struct SndChannel;
@@ -154,7 +152,6 @@ public:
     AudioFrame *in_progress = nullptr;   /* Frame being sent to the client */
     AudioFrame *pending_frame = nullptr; /* Next frame to send to the client */
     SpiceAudioDataMode mode = SPICE_AUDIO_DATA_MODE_RAW;
-    uint32_t latency = 0;
     SndCodec codec = nullptr;
     uint8_t  encode_buf[SND_CODEC_MAX_COMPRESSED_BYTES];
 
@@ -453,21 +450,6 @@ static bool snd_playback_send_mute(PlaybackChannelClient *playback_client)
                          SPICE_MSG_PLAYBACK_MUTE);
 }
 
-static bool snd_playback_send_latency(PlaybackChannelClient *playback_client)
-{
-    RedChannelClient *rcc = playback_client;
-    SpiceMarshaller *m = rcc->get_marshaller();
-    SpiceMsgPlaybackLatency latency_msg;
-
-    spice_debug("latency %u", playback_client->latency);
-    rcc->init_send_data(SPICE_MSG_PLAYBACK_LATENCY);
-    latency_msg.latency_ms = playback_client->latency;
-    spice_marshall_msg_playback_latency(m, &latency_msg);
-
-    rcc->begin_send_message();
-    return true;
-}
-
 static bool snd_playback_send_start(PlaybackChannelClient *playback_client)
 {
     SpiceMarshaller *m = playback_client->get_marshaller();
@@ -642,7 +624,7 @@ void PlaybackChannelClient::send_item(G_GNUC_UNUSED RedPipeItem *item)
 {
     command &= SND_PLAYBACK_MODE_MASK|SND_PLAYBACK_PCM_MASK|
                SND_CTRL_MASK|SND_VOLUME_MUTE_MASK|
-               SND_MIGRATE_MASK|SND_PLAYBACK_LATENCY_MASK;
+               SND_MIGRATE_MASK;
     while (command) {
         if (command & SND_PLAYBACK_MODE_MASK) {
             command &= ~SND_PLAYBACK_MODE_MASK;
@@ -682,12 +664,6 @@ void PlaybackChannelClient::send_item(G_GNUC_UNUSED RedPipeItem *item)
         if (command & SND_MIGRATE_MASK) {
             command &= ~SND_MIGRATE_MASK;
             if (snd_playback_send_migrate(this)) {
-                break;
-            }
-        }
-        if (command & SND_PLAYBACK_LATENCY_MASK) {
-            command &= ~SND_PLAYBACK_LATENCY_MASK;
-            if (snd_playback_send_latency(this)) {
                 break;
             }
         }
@@ -939,29 +915,6 @@ SPICE_GNUC_VISIBLE void spice_server_playback_put_samples(SpicePlaybackInstance 
     playback_client->pending_frame = frame;
     snd_set_command(playback_client, SND_PLAYBACK_PCM_MASK);
     snd_send(playback_client);
-}
-
-void snd_set_playback_latency(RedClient *client, uint32_t latency)
-{
-    GList *l;
-
-    for (l = snd_channels; l != nullptr; l = l->next) {
-        auto now = static_cast<SndChannel *>(l->data);
-        SndChannelClient *scc = snd_channel_get_client(now);
-        if (now->type() == SPICE_CHANNEL_PLAYBACK && scc &&
-            scc->get_client() == client) {
-
-            if (scc->test_remote_cap(SPICE_PLAYBACK_CAP_LATENCY)) {
-                auto  playback = (PlaybackChannelClient*)scc;
-
-                playback->latency = latency;
-                snd_set_command(scc, SND_PLAYBACK_LATENCY_MASK);
-                snd_send(scc);
-            } else {
-                spice_debug("client doesn't not support SPICE_PLAYBACK_CAP_LATENCY");
-            }
-        }
-    }
 }
 
 static SpiceAudioDataMode

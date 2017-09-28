@@ -30,7 +30,6 @@
 #include "safe-list.hpp"
 
 #define MIGRATE_TIMEOUT (MSEC_PER_SEC * 10)
-#define MM_TIME_DELTA 400 /*ms*/
 
 struct TicketAuthentication {
     char password[SPICE_MAX_PASSWORD_LENGTH];
@@ -128,7 +127,6 @@ struct RedsState {
     SpiceBuffer client_monitors_config;
 
     int mm_time_enabled;
-    uint32_t mm_time_latency;
 
     SpiceCharDeviceInstance *vdagent;
     SpiceMigrateInstance *migration_interface;

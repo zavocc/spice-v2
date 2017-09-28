@@ -1162,16 +1162,6 @@ spice_wan_compression_t dcc_get_zlib_glz_state(DisplayChannelClient *dcc)
     return dcc->priv->zlib_glz_state;
 }
 
-uint32_t dcc_get_max_stream_latency(DisplayChannelClient *dcc)
-{
-    return dcc->priv->streams_max_latency;
-}
-
-void dcc_set_max_stream_latency(DisplayChannelClient *dcc, uint32_t latency)
-{
-    dcc->priv->streams_max_latency = latency;
-}
-
 uint64_t dcc_get_max_stream_bit_rate(DisplayChannelClient *dcc)
 {
     return dcc->priv->streams_max_bit_rate;
