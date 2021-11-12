@@ -135,3 +135,14 @@
     ...
     fun:g_thread_pool_push
 }
+
+{
+    g_tls_client_connection_new
+    Memcheck:Leak
+    match-leak-kinds:possible,definite
+    fun:malloc
+    ...
+    fun:_dl_close
+    ...
+    fun:g_tls_client_connection_new
+}
