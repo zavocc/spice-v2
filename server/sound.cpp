@@ -42,8 +42,7 @@
 #include "sound.h"
 #include "main-channel-client.h"
 
-#define SND_RECEIVE_BUF_SIZE     (16 * 1024 * 2)
-#define RECORD_SAMPLES_SIZE (SND_RECEIVE_BUF_SIZE >> 2)
+#define RECORD_SAMPLES_SIZE (16*1024*2)
 
 enum SndCommand {
     SND_MIGRATE,
@@ -209,9 +208,10 @@ public:
     using SndChannelClient::SndChannelClient;
     bool init() override;
 
-    uint32_t samples[RECORD_SAMPLES_SIZE];
+    int8_t samples[RECORD_SAMPLES_SIZE];
     uint32_t write_pos = 0;
     uint32_t read_pos = 0;
+    uint32_t buffered = 0;
     SpiceAudioDataMode mode = SPICE_AUDIO_DATA_MODE_RAW;
     uint32_t mode_time = 0;
     uint32_t start_time = 0;
@@ -269,10 +269,8 @@ void PlaybackChannelClient::on_message_marshalled(uint8_t *, void *opaque)
 static bool snd_record_handle_write(RecordChannelClient *record_client, size_t size, void *message)
 {
     SpiceMsgcRecordPacket *packet;
-    uint32_t write_pos;
     uint8_t* data;
-    uint32_t len;
-    uint32_t now;
+    uint32_t write;
 
     if (!record_client) {
         return false;
@@ -282,8 +280,7 @@ static bool snd_record_handle_write(RecordChannelClient *record_client, size_t s
 
     if (record_client->mode == SPICE_AUDIO_DATA_MODE_RAW) {
         data = packet->data;
-        size = packet->data_size >> 2;
-        size = MIN(size, RECORD_SAMPLES_SIZE);
+        size = packet->data_size;
      } else {
         int decode_size;
         decode_size = sizeof(record_client->decode_buf);
@@ -291,23 +288,34 @@ static bool snd_record_handle_write(RecordChannelClient *record_client, size_t s
                     record_client->decode_buf, &decode_size) != SND_CODEC_OK)
             return false;
         data = record_client->decode_buf;
-        size = decode_size >> 2;
+        size = decode_size;
     }
 
-    write_pos = record_client->write_pos % RECORD_SAMPLES_SIZE;
-    record_client->write_pos += size;
-    len = RECORD_SAMPLES_SIZE - write_pos;
-    now = MIN(len, size);
-    size -= now;
-    memcpy(record_client->samples + write_pos, data, now << 2);
-
-    if (size) {
-        memcpy(record_client->samples, data + (now << 2), size << 2);
+    /* check for overrun, if this has happened we need to clear the buffer, if
+     * we do not the the buffered data will cause undesired extra latency for
+     * the remainder of thhe session */
+    write = sizeof(record_client->samples) - record_client->buffered;
+    if (write < size) {
+        record_client->buffered = 0;
+        write = sizeof(record_client->samples);
     }
 
-    if (record_client->write_pos - record_client->read_pos > RECORD_SAMPLES_SIZE) {
-        record_client->read_pos = record_client->write_pos - RECORD_SAMPLES_SIZE;
-    }
+    size = MIN(write, size);
+    do {
+        write = MIN(sizeof(record_client->samples) - record_client->write_pos, size);
+        memcpy(record_client->samples + record_client->write_pos, data, write);
+
+        size -= write;
+        data += write;
+        record_client->write_pos += write;
+        record_client->buffered += write;
+
+        if (record_client->write_pos == sizeof(record_client->samples)) {
+            record_client->write_pos = 0;
+        }
+
+    } while(size && record_client->buffered < sizeof(record_client->samples));
+
     return true;
 }
 
@@ -1090,8 +1098,10 @@ static void record_channel_client_start(SndChannelClient *client)
     }
 
     RecordChannelClient *record_client = RECORD_CHANNEL_CLIENT(client);
-    record_client->read_pos = record_client->write_pos = 0;   //todo: improve by
-                                                              //stream generation
+    record_client->read_pos =
+        record_client->write_pos =
+        record_client->buffered = 0;
+
     snd_channel_client_start(client);
 }
 
@@ -1123,8 +1133,8 @@ SPICE_GNUC_VISIBLE uint32_t spice_server_record_get_samples(SpiceRecordInstance 
                                                             uint32_t *samples, uint32_t bufsize)
 {
     SndChannelClient *client = snd_channel_get_client(sin->st);
-    uint32_t read_pos;
-    uint32_t now;
+    uint8_t *data;
+    uint32_t write;
     uint32_t len;
 
     if (!client)
@@ -1132,20 +1142,27 @@ SPICE_GNUC_VISIBLE uint32_t spice_server_record_get_samples(SpiceRecordInstance 
     RecordChannelClient *record_client = RECORD_CHANNEL_CLIENT(client);
     spice_assert(client->active);
 
-    if (record_client->write_pos < RECORD_SAMPLES_SIZE / 2) {
+    if (!record_client->buffered || !bufsize)
         return 0;
-    }
 
-    len = MIN(record_client->write_pos - record_client->read_pos, bufsize);
+    data = reinterpret_cast<uint8_t *>(samples);
+    bufsize = len = MIN(record_client->buffered, bufsize << 2);
+    do {
+        write = MIN(sizeof(record_client->samples) - record_client->read_pos, bufsize);
 
-    read_pos = record_client->read_pos % RECORD_SAMPLES_SIZE;
-    record_client->read_pos += len;
-    now = MIN(len, RECORD_SAMPLES_SIZE - read_pos);
-    memcpy(samples, &record_client->samples[read_pos], now * 4);
-    if (now < len) {
-        memcpy(samples + now, record_client->samples, (len - now) * 4);
-    }
-    return len;
+        memcpy(data, record_client->samples + record_client->read_pos, write);
+        data    += write;
+        bufsize -= write;
+        record_client->read_pos += write;
+
+        if (record_client->read_pos == sizeof(record_client->samples)) {
+            record_client->read_pos = 0;
+        }
+
+    } while(bufsize);
+
+    record_client->buffered -= len;
+    return len >> 2;
 }
 
 static void snd_set_rate(SndChannel *channel, uint32_t frequency, uint32_t cap_opus)
