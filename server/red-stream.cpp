@@ -44,7 +44,7 @@
 #include "websocket.h"
 
 // compatibility for *BSD systems
-#if !defined(TCP_CORK) && !defined(_WIN32)
+#if !defined(TCP_CORK) && !defined(_WIN32) && !defined(__APPLE__)
 #define TCP_CORK TCP_NOPUSH
 #endif
 
@@ -106,7 +106,8 @@ struct RedStreamPrivate {
     SpiceCoreInterfaceInternal *core;
 };
 
-#ifndef _WIN32
+// TCP_NOPUSH is broken on Darwin
+#if !defined(_WIN32) && !defined(__APPLE__)
 /**
  * Set TCP_CORK on socket
  */
