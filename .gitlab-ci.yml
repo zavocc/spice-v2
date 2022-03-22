@@ -106,7 +106,7 @@ makecheck-centos:
       meson gcc-c++ autoconf-archive
       -y
     - *protocol
-  image: centos:latest
+  image: quay.io/centos/centos:stream8
   script:
   - >
     CFLAGS='-O2 -pipe -g -fsanitize=address -fno-omit-frame-pointer -Wframe-larger-than=40920'
