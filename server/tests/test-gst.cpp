@@ -614,7 +614,11 @@ create_pipeline(const char *desc, SampleProc sample_proc, void *param)
     }
 
     static const GstAppSinkCallbacks appsink_cbs_template =
+#if GST_CHECK_VERSION(1, 20, 0)
+        { NULL, NULL, new_sample, NULL, ._gst_reserved={NULL} };
+#else
         { NULL, NULL, new_sample, ._gst_reserved={NULL} };
+#endif
     GstAppSinkCallbacks appsink_cbs = appsink_cbs_template;
     gst_app_sink_set_callbacks(pipeline->appsink, &appsink_cbs, pipeline, NULL);
 
