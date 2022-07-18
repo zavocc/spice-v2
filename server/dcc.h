@@ -19,6 +19,8 @@
 #ifndef DCC_H_
 #define DCC_H_
 
+#include <array>
+
 #include "image-encoders.h"
 #include "image-cache.h"
 #include "pixmap-cache.h"

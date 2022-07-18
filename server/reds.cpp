@@ -17,6 +17,7 @@
 */
 #include <config.h>
 
+#include <array>
 #include <cctype>
 #include <climits>
 #include <cstdint>
