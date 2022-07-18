@@ -1781,7 +1781,7 @@ static void reds_handle_main_link(RedsState *reds, RedLinkInfo *link)
 
     if (link_mess->connection_id == 0) {
         reds_send_link_result(link, SPICE_LINK_ERR_OK);
-        while((connection_id = rand()) == 0);
+        while((connection_id = g_random_int()) == 0);
         mig_target = FALSE;
     } else {
         // TODO: make sure link_mess->connection_id is the same
