@@ -150,7 +150,7 @@ makecheck-windows:
   script:
   - >
     dnf install -y
-    wine-core.x86_64 mingw64-gcc-c++
+    wine mingw64-gcc-c++
     mingw64-openssl mingw64-glib2 mingw64-glib-networking mingw64-libjpeg-turbo
     mingw64-pixman mingw64-opus mingw64-winpthreads mingw64-zlib
     mingw64-gstreamer1-plugins-base mingw64-gstreamer1-plugins-good mingw64-orc
@@ -162,6 +162,7 @@ makecheck-windows:
   - mingw64-make
   - export G_TLS_GNUTLS_PRIORITY="NORMAL:%COMPAT"
   - export WINEPATH='Z:\usr\x86_64-w64-mingw32\sys-root\mingw\bin'
+  - export LANG=en_US.UTF-8
   - (cd server && exec mingw64-make LOG_COMPILE=wine check) || (cat server/tests/test-suite.log && exit 1)
 
 websocket-autobahn:
