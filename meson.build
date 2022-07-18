@@ -198,6 +198,7 @@ spice_server_global_cxxflags += [
   '-Wno-suggest-final-methods',
   '-Wno-suggest-final-types',
   '-Wno-array-bounds',
+  '-Wno-stringop-overflow',
   '-Wno-narrowing',
   '-Wno-missing-field-initializers',
   '-Wno-deprecated-declarations',

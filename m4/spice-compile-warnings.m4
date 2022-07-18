@@ -157,6 +157,7 @@ AC_DEFUN([SPICE_COMPILE_WARNINGS],[
 
     # -Wno-array-bounds to avoid checks for array with 0 size
     gl_WARN_ADD([-Wno-array-bounds])
+    gl_WARN_ADD([-Wno-stringop-overflow])
 
     # -Wno-narrowing to allow cast from -1 to unsigned (used in some initialization)
     gl_WARN_ADD([-Wno-narrowing])
