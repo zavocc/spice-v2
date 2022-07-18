@@ -105,11 +105,17 @@ public:
 };
 
 template <typename T>
-class safe_list<T>::iterator: public std::iterator<std::forward_iterator_tag, T>
+class safe_list<T>::iterator
 {
     typedef typename std::forward_list<T,Mallocator<T>>::iterator wrapped;
     wrapped curr, next;
 public:
+    using iterator_category = std::forward_iterator_tag;
+    using value_type = T;
+    using difference_type = ptrdiff_t;
+    using pointer = const value_type*;
+    using reference = const value_type&;
+
     iterator(wrapped init_curr) :
         curr(init_curr),
         next(init_curr != wrapped() ? ++init_curr : wrapped())
