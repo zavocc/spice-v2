@@ -272,7 +272,11 @@ static void reds_link_free(RedLinkInfo *link)
     link->tiTicketing.bn = nullptr;
 
     if (link->tiTicketing.rsa) {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+        EVP_PKEY_free(link->tiTicketing.rsa);
+#else
         RSA_free(link->tiTicketing.rsa);
+#endif
         link->tiTicketing.rsa = nullptr;
     }
 
@@ -1548,14 +1552,29 @@ static bool reds_send_link_ack(RedsState *reds, RedLinkInfo *link)
     msg.ack.caps_offset = GUINT32_TO_LE(sizeof(SpiceLinkReply));
     if (!reds->config->sasl_enabled
         || !red_link_info_test_capability(link, SPICE_COMMON_CAP_AUTH_SASL)) {
-        if (!(link->tiTicketing.rsa = RSA_new())) {
-            spice_warning("RSA new failed");
+        if (!(bio = BIO_new(BIO_s_mem()))) {
+            spice_warning("BIO new failed");
             red_dump_openssl_errors();
             return FALSE;
         }
 
-        if (!(bio = BIO_new(BIO_s_mem()))) {
-            spice_warning("BIO new failed");
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+        link->tiTicketing.rsa = EVP_RSA_gen(SPICE_TICKET_KEY_PAIR_LENGTH);
+        if (!link->tiTicketing.rsa) {
+            spice_warning("Failed to generate %d bits RSA key",
+                          SPICE_TICKET_KEY_PAIR_LENGTH);
+            red_dump_openssl_errors();
+            goto end;
+        }
+        link->tiTicketing.rsa_size = SPICE_TICKET_KEY_PAIR_LENGTH / 8;
+        if (i2d_PUBKEY_bio(bio, link->tiTicketing.rsa) <= 0) {
+            spice_warning("Failed to get public key");
+            red_dump_openssl_errors();
+            goto end;
+        }
+#else
+        if (!(link->tiTicketing.rsa = RSA_new())) {
+            spice_warning("RSA new failed");
             red_dump_openssl_errors();
             return FALSE;
         }
@@ -1570,8 +1589,8 @@ static bool reds_send_link_ack(RedsState *reds, RedLinkInfo *link)
             goto end;
         }
         link->tiTicketing.rsa_size = RSA_size(link->tiTicketing.rsa);
-
         i2d_RSA_PUBKEY_bio(bio, link->tiTicketing.rsa);
+#endif
         BIO_get_mem_ptr(bio, &bmBuf);
         memcpy(msg.ack.pub_key, bmBuf->data, sizeof(msg.ack.pub_key));
     } else {
@@ -2022,19 +2041,51 @@ static void reds_handle_ticket(void *opaque)
     RedsState *reds = link->reds;
     char *password;
     int password_size;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EVP_PKEY_CTX *ctx = nullptr;
+#endif
 
-    if (RSA_size(link->tiTicketing.rsa) < SPICE_MAX_PASSWORD_LENGTH) {
+    if (link->tiTicketing.rsa_size < SPICE_MAX_PASSWORD_LENGTH) {
         spice_warning("RSA modulus size is smaller than SPICE_MAX_PASSWORD_LENGTH (%d < %d), "
                       "SPICE ticket sent from client may be truncated",
-                      RSA_size(link->tiTicketing.rsa), SPICE_MAX_PASSWORD_LENGTH);
+                      link->tiTicketing.rsa_size, SPICE_MAX_PASSWORD_LENGTH);
     }
 
-    password = static_cast<char *>(alloca(RSA_size(link->tiTicketing.rsa) + 1));
+    password = static_cast<char *>(alloca(link->tiTicketing.rsa_size + 1));
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    size_t len = 0;
+
+    ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, link->tiTicketing.rsa, nullptr);
+
+    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
+        spice_warning("failed to initialize decrypt");
+        red_dump_openssl_errors();
+        goto error;
+    }
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        spice_warning("failed to set OAEP padding");
+        red_dump_openssl_errors();
+        goto error;
+    }
+
+    len = link->tiTicketing.rsa_size;
+    if (EVP_PKEY_decrypt(ctx, reinterpret_cast<unsigned char *>(password), &len,
+                         link->tiTicketing.encrypted_ticket.encrypted_data, link->tiTicketing.rsa_size) <= 0) {
+        spice_warning("failed to decrypt RSA encrypted password");
+        red_dump_openssl_errors();
+        goto error;
+    }
+    EVP_PKEY_CTX_free(ctx);
+
+    password_size = len;
+#else
     password_size =
         RSA_private_decrypt(link->tiTicketing.rsa_size,
                             link->tiTicketing.encrypted_ticket.encrypted_data,
                             reinterpret_cast<unsigned char *>(password),
                             link->tiTicketing.rsa, RSA_PKCS1_OAEP_PADDING);
+#endif
     if (password_size == -1) {
         spice_warning("failed to decrypt RSA encrypted password");
         red_dump_openssl_errors();
@@ -2070,6 +2121,11 @@ static void reds_handle_ticket(void *opaque)
     return;
 
 error:
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    if (ctx != nullptr) {
+        EVP_PKEY_CTX_free(ctx);
+    }
+#endif
     reds_send_link_result(link, SPICE_LINK_ERR_PERMISSION_DENIED);
     reds_link_free(link);
 }
@@ -2635,8 +2691,13 @@ static int reds_init_net(RedsState *reds)
 
 static int load_dh_params(SSL_CTX *ctx, char *file)
 {
-    DH *ret = nullptr;
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EVP_PKEY *dh = nullptr;
+#else
+    DH *dh = nullptr;
+#endif
     BIO *bio;
+    int ret;
 
     if ((bio = BIO_new_file(file, "r")) == nullptr) {
         spice_warning("Could not open DH file");
@@ -2644,16 +2705,29 @@ static int load_dh_params(SSL_CTX *ctx, char *file)
         return -1;
     }
 
-    ret = PEM_read_bio_DHparams(bio, nullptr, nullptr, nullptr);
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    dh = PEM_read_bio_Parameters(bio, &dh);
+#else
+    dh = PEM_read_bio_DHparams(bio, nullptr, nullptr, nullptr);
+#endif
+
     BIO_free(bio);
-    if (ret == nullptr) {
+    if (dh == nullptr) {
         spice_warning("Could not read DH params");
         red_dump_openssl_errors();
         return -1;
     }
 
-
-    if (SSL_CTX_set_tmp_dh(ctx, ret) < 0) {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    ret = SSL_CTX_set0_tmp_dh_pkey(ctx, dh);
+#else
+    ret = SSL_CTX_set_tmp_dh(ctx, dh);
+    DH_free(dh);
+#endif
+    if (ret < 0) {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+        EVP_PKEY_free(dh);
+#endif
         spice_warning("Could not set DH params");
         red_dump_openssl_errors();
         return -1;

@@ -38,7 +38,11 @@ struct TicketAuthentication {
 };
 
 struct TicketInfo {
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    EVP_PKEY *rsa;
+#else
     RSA *rsa;
+#endif
     int rsa_size;
     BIGNUM *bn;
     SpiceLinkEncryptedTicket encrypted_ticket;
