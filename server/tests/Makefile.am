@@ -8,6 +8,7 @@ EXTRA_DIST =				\
 	pki/ca-cert.pem			\
 	pki/server-cert.pem		\
 	pki/server-key.pem		\
+	pki/dhparams.pem		\
 	$(NULL)
 
 AM_CPPFLAGS =					\

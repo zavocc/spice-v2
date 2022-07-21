@@ -56,7 +56,9 @@ static void server_leaks(void)
                                   PKI_DIR "ca-cert.pem",
                                   PKI_DIR "server-cert.pem",
                                   PKI_DIR "server-key.pem",
-                                  NULL, NULL, NULL);
+                                  NULL,
+                                  PKI_DIR "dhparams.pem",
+                                  NULL);
     g_assert_cmpint(result, ==, 0);
 
     g_assert_cmpint(spice_server_init(server, core), ==, 0);
