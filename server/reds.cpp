@@ -272,11 +272,7 @@ static void reds_link_free(RedLinkInfo *link)
     link->tiTicketing.bn = nullptr;
 
     if (link->tiTicketing.rsa) {
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
         EVP_PKEY_free(link->tiTicketing.rsa);
-#else
-        RSA_free(link->tiTicketing.rsa);
-#endif
         link->tiTicketing.rsa = nullptr;
     }
 
@@ -1507,6 +1503,40 @@ static bool red_link_info_test_capability(const RedLinkInfo *link, uint32_t cap)
     return test_capability(caps, link->link_mess->num_common_caps, cap);
 }
 
+// Check for EVP_RSA_gen. EVP_RSA_gen was always defined as a macro in <openssl/rsa.h>
+// and it's still so in OpenSSL 3.0 so checking for macro existence is a good way.
+#if OPENSSL_VERSION_NUMBER < 0x30000000L && !defined(EVP_RSA_gen)
+static EVP_PKEY *EVP_RSA_gen(unsigned int bits, BIGNUM *rsa_exponent)
+{
+    RSA *rsa = RSA_new();
+    if (!rsa) {
+        return nullptr;
+    }
+
+    if (RSA_generate_key_ex(rsa, SPICE_TICKET_KEY_PAIR_LENGTH,
+                            rsa_exponent, nullptr) != 1) {
+        RSA_free(rsa);
+        return nullptr;
+    }
+
+    EVP_PKEY *pk = EVP_PKEY_new();
+    if (!pk) {
+        RSA_free(rsa);
+        return nullptr;
+    }
+
+    if (!EVP_PKEY_set1_RSA(pk, rsa)) {
+        EVP_PKEY_free(pk);
+        RSA_free(rsa);
+        return nullptr;
+    }
+
+    RSA_free(rsa);
+    return pk;
+}
+
+#define EVP_RSA_gen(bits) EVP_RSA_gen(bits, (link->tiTicketing.bn))
+#endif
 
 static bool reds_send_link_ack(RedsState *reds, RedLinkInfo *link)
 {
@@ -1558,7 +1588,6 @@ static bool reds_send_link_ack(RedsState *reds, RedLinkInfo *link)
             return FALSE;
         }
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
         link->tiTicketing.rsa = EVP_RSA_gen(SPICE_TICKET_KEY_PAIR_LENGTH);
         if (!link->tiTicketing.rsa) {
             spice_warning("Failed to generate %d bits RSA key",
@@ -1572,25 +1601,6 @@ static bool reds_send_link_ack(RedsState *reds, RedLinkInfo *link)
             red_dump_openssl_errors();
             goto end;
         }
-#else
-        if (!(link->tiTicketing.rsa = RSA_new())) {
-            spice_warning("RSA new failed");
-            red_dump_openssl_errors();
-            return FALSE;
-        }
-
-        if (RSA_generate_key_ex(link->tiTicketing.rsa,
-                                SPICE_TICKET_KEY_PAIR_LENGTH,
-                                link->tiTicketing.bn,
-                                nullptr) != 1) {
-            spice_warning("Failed to generate %d bits RSA key",
-                          SPICE_TICKET_KEY_PAIR_LENGTH);
-            red_dump_openssl_errors();
-            goto end;
-        }
-        link->tiTicketing.rsa_size = RSA_size(link->tiTicketing.rsa);
-        i2d_RSA_PUBKEY_bio(bio, link->tiTicketing.rsa);
-#endif
         BIO_get_mem_ptr(bio, &bmBuf);
         memcpy(msg.ack.pub_key, bmBuf->data, sizeof(msg.ack.pub_key));
     } else {
@@ -2040,10 +2050,7 @@ static void reds_handle_ticket(void *opaque)
     auto link = static_cast<RedLinkInfo *>(opaque);
     RedsState *reds = link->reds;
     char *password;
-    int password_size;
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     EVP_PKEY_CTX *ctx = nullptr;
-#endif
 
     if (link->tiTicketing.rsa_size < SPICE_MAX_PASSWORD_LENGTH) {
         spice_warning("RSA modulus size is smaller than SPICE_MAX_PASSWORD_LENGTH (%d < %d), "
@@ -2053,12 +2060,11 @@ static void reds_handle_ticket(void *opaque)
 
     password = static_cast<char *>(alloca(link->tiTicketing.rsa_size + 1));
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     size_t len = 0;
 
-    ctx = EVP_PKEY_CTX_new_from_pkey(nullptr, link->tiTicketing.rsa, nullptr);
+    ctx = EVP_PKEY_CTX_new(link->tiTicketing.rsa, nullptr);
 
-    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
+    if (!ctx || EVP_PKEY_decrypt_init(ctx) <= 0) {
         spice_warning("failed to initialize decrypt");
         red_dump_openssl_errors();
         goto error;
@@ -2076,22 +2082,8 @@ static void reds_handle_ticket(void *opaque)
         red_dump_openssl_errors();
         goto error;
     }
-    EVP_PKEY_CTX_free(ctx);
 
-    password_size = len;
-#else
-    password_size =
-        RSA_private_decrypt(link->tiTicketing.rsa_size,
-                            link->tiTicketing.encrypted_ticket.encrypted_data,
-                            reinterpret_cast<unsigned char *>(password),
-                            link->tiTicketing.rsa, RSA_PKCS1_OAEP_PADDING);
-#endif
-    if (password_size == -1) {
-        spice_warning("failed to decrypt RSA encrypted password");
-        red_dump_openssl_errors();
-        goto error;
-    }
-    password[password_size] = '\0';
+    password[len] = '\0';
 
     if (reds->config->ticketing_enabled && !link->skip_auth) {
         time_t ltime;
@@ -2117,15 +2109,14 @@ static void reds_handle_ticket(void *opaque)
         }
     }
 
+    EVP_PKEY_CTX_free(ctx);
     reds_handle_link(link);
     return;
 
 error:
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
     if (ctx != nullptr) {
         EVP_PKEY_CTX_free(ctx);
     }
-#endif
     reds_send_link_result(link, SPICE_LINK_ERR_PERMISSION_DENIED);
     reds_link_free(link);
 }
@@ -2689,15 +2680,25 @@ static int reds_init_net(RedsState *reds)
     return 0;
 }
 
+#if OPENSSL_VERSION_NUMBER < 0x30000000L
+static inline int SSL_CTX_set0_tmp_dh_pkey(SSL_CTX *ctx, EVP_PKEY *dhpkey)
+{
+    DH *dh = EVP_PKEY_get1_DH(dhpkey);
+    if (dh == nullptr) {
+        return 0;
+    }
+    int ret = SSL_CTX_set_tmp_dh(ctx, dh);
+    DH_free(dh);
+    if (ret > 0) {
+        EVP_PKEY_free(dhpkey);
+    }
+    return ret;
+}
+#endif
+
 static int load_dh_params(SSL_CTX *ctx, char *file)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_PKEY *dh = nullptr;
-#else
-    DH *dh = nullptr;
-#endif
     BIO *bio;
-    int ret;
 
     if ((bio = BIO_new_file(file, "r")) == nullptr) {
         spice_warning("Could not open DH file");
@@ -2705,11 +2706,7 @@ static int load_dh_params(SSL_CTX *ctx, char *file)
         return -1;
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    dh = PEM_read_bio_Parameters(bio, &dh);
-#else
-    dh = PEM_read_bio_DHparams(bio, nullptr, nullptr, nullptr);
-#endif
+    auto dh = PEM_read_bio_Parameters(bio, nullptr);
 
     BIO_free(bio);
     if (dh == nullptr) {
@@ -2718,16 +2715,9 @@ static int load_dh_params(SSL_CTX *ctx, char *file)
         return -1;
     }
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    ret = SSL_CTX_set0_tmp_dh_pkey(ctx, dh);
-#else
-    ret = SSL_CTX_set_tmp_dh(ctx, dh);
-    DH_free(dh);
-#endif
-    if (ret < 0) {
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    auto ret = SSL_CTX_set0_tmp_dh_pkey(ctx, dh);
+    if (ret <= 0) {
         EVP_PKEY_free(dh);
-#endif
         spice_warning("Could not set DH params");
         red_dump_openssl_errors();
         return -1;
