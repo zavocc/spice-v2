@@ -1,3 +1,18 @@
+Major Changes in 0.15.1:
+========================
+
+* Fix some compatibility issues with FreeBSD
+* Fix some minor issue with build
+* Improve packaging with Meson
+* Lot of C++ improves (clang-tidy)
+* Fix some compatibility with no-Glibc libraries (like Musl)
+* Fix minor leaks shutting down library
+* Add Doxygen file to distribution
+* Fix a longstanding issue related to surface updates where wrong surfaces were possibly used
+* Fix compatibility with OpenSSL 3
+* Updates and fixes for CI
+* Use more random connection IDs to fix possible issues with proxies
+
 Major Changes in 0.15:
 ======================
 
