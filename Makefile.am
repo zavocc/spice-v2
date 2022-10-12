@@ -21,6 +21,7 @@ EXTRA_DIST =					\
 	meson.build				\
 	meson_options.txt			\
 	build-aux/git-version-gen		\
+	build-aux/meson-dist			\
 	build-aux/meson/check-spice-common	\
 	CHANGELOG.md				\
 	doxygen.sh				\

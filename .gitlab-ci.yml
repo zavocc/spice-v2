@@ -88,8 +88,17 @@ syntax-check:
 
 distcheck:
   script:
+  - git clean -fdx
+  - git submodule foreach --recursive git clean -fdx
   - ./autogen.sh --enable-manual --enable-werror
   - make distcheck
+  - bz2=$( echo spice-*.bz2 )
+  - dir=${bz2%.tar.bz2}
+  - rm -rf "$dir"
+  - tar jxvf "$bz2"
+  - cd "$dir"
+  - meson --buildtype=release build
+  - ninja -C build
 
 # Same as makecheck job but use a Centos image
 makecheck-centos:
