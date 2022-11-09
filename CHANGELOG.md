@@ -1,3 +1,10 @@
+Major Changes in 0.15.2:
+========================
+Really minor fix release, mainly to fix a distribution issue
+
+* Add missing file to distribution
+* Fix sound recording fix in case of buffer wrapping
+
 Major Changes in 0.15.1:
 ========================
 
