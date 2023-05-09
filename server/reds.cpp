@@ -2817,8 +2817,7 @@ static int reds_init_ssl(RedsState *reds)
     openssl_global_init();
 
     /* Create our context*/
-    /* SSLv23_method() handles TLSv1.x in addition to SSLv2/v3 */
-    ssl_method = SSLv23_method();
+    ssl_method = TLS_method();
     reds->ctx = SSL_CTX_new(ssl_method);
     if (!reds->ctx) {
         spice_warning("Could not allocate new SSL context");
