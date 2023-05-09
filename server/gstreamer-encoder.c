@@ -21,11 +21,19 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+// ignore static constants variable not used
+#if defined(__GNUC__) && (__GNUC__ >= 6)
+#  pragma GCC diagnostic push
+#  pragma GCC diagnostic ignored "-Wunused-const-variable"
+#endif
 #include <gst/gst.h>
 #include <gst/app/gstappsrc.h>
 #include <gst/app/gstappsink.h>
 #include <gst/video/video.h>
 #include <orc/orcprogram.h>
+#if defined(__GNUC__) && (__GNUC__ >= 6)
+#  pragma GCC diagnostic pop
+#endif
 
 #include "red-common.h"
 #include "video-encoder.h"
