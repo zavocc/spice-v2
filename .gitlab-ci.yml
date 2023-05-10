@@ -99,7 +99,7 @@ makecheck-centos:
     - dnf config-manager --set-enabled powertools
     - >
       dnf install git libtool make libasan orc-devel glib-networking
-      gcc glib2-devel
+      gcc glib2-devel diffutils
       opus-devel pixman-devel openssl-devel libjpeg-devel
       libcacard-devel cyrus-sasl-devel lz4-devel
       gstreamer1-devel gstreamer1-plugins-base-devel
