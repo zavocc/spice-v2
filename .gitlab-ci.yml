@@ -185,6 +185,7 @@ websocket-autobahn:
     - *protocol
   image: ubuntu:bionic
   script:
+  - pip2 install 'wsaccel==0.6.3'
   - pip2 install autobahntestsuite
   - wstest -a
   - git clean -fdx
