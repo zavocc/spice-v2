@@ -1,4 +1,4 @@
-AC_PREREQ([2.57])
+AC_PREREQ([2.69])
 
 # Follow the libtool manual for the so version:
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
@@ -30,7 +30,7 @@ SPICE_SERVER_VERSION=`printf "0x%02x%02x%02x" $major $minor $micro`
 AC_SUBST(SPICE_SERVER_VERSION)
 
 AC_CONFIG_MACRO_DIR([m4])
-AM_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR(.)
 
 AX_PTHREAD
@@ -39,7 +39,6 @@ AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip subdir-objects foreign])
 AM_MAINTAINER_MODE
 
 AC_PROG_CC
-AC_PROG_CC_C99
 if test x"$ac_cv_prog_cc_c99" = xno; then
     AC_MSG_ERROR([C99 compiler is required.])
 fi
@@ -169,7 +168,7 @@ dnl Check deps
 m4_define([SPICE_PROTOCOL_MIN_VER],[0.14.3])
 m4_include([subprojects/spice-common/m4/common.m4])
 
-AC_CHECK_LIBM
+LT_LIB_M
 AC_SUBST(LIBM)
 
 AC_CHECK_LIB(rt, clock_gettime, LIBRT="-lrt")
@@ -219,15 +218,12 @@ CFLAGS="$save_CFLAGS"
 
 AC_CHECK_LIB(jpeg, jpeg_destroy_decompress,
     AC_MSG_CHECKING([for jpeglib.h])
-    AC_TRY_CPP(
-[#include <stdio.h>
+    AC_PREPROC_IFELSE([AC_LANG_SOURCE([[#include <stdio.h>
 #undef PACKAGE
 #undef VERSION
 #undef HAVE_STDLIB_H
-#include <jpeglib.h>],
-        JPEG_LIBS='-ljpeg'
-        AC_MSG_RESULT($jpeg_ok),
-	AC_MSG_ERROR([jpeglib.h not found])),
+#include <jpeglib.h>]])],[JPEG_LIBS='-ljpeg'
+        AC_MSG_RESULT($jpeg_ok)],[AC_MSG_ERROR(jpeglib.h not found)]),
     AC_MSG_ERROR([libjpeg not found]))
 AC_SUBST(JPEG_LIBS)
 
@@ -307,7 +303,7 @@ AC_SUBST(SPICE_NONPKGCONFIG_LIBS)
 
 AM_SILENT_RULES([yes])
 
-AC_OUTPUT([
+AC_CONFIG_FILES([
 Makefile
 spice-server.pc
 server/Makefile
@@ -317,6 +313,7 @@ docs/Makefile
 docs/manual/Makefile
 tools/Makefile
 ])
+AC_OUTPUT
 
 dnl ==========================================================================
 AC_MSG_NOTICE([
