@@ -163,6 +163,8 @@ makecheck-windows:
   - export G_TLS_GNUTLS_PRIORITY="NORMAL:%COMPAT"
   - export WINEPATH='Z:\usr\x86_64-w64-mingw32\sys-root\mingw\bin'
   - export LANG=en_US.UTF-8
+  # Remove configuration otherwise OpenSSL initialization will fail
+  - rm -f /usr/x86_64-w64-mingw32/sys-root/mingw/etc/pki/tls/openssl.cnf
   - (cd server && exec mingw64-make LOG_COMPILE=wine check) || (cat server/tests/test-suite.log && exit 1)
 
 websocket-autobahn:
