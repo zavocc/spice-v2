@@ -74,7 +74,6 @@ check-valgrind:
     dnf install valgrind
     gstreamer1-libav gstreamer1-plugins-ugly gstreamer1-plugins-good gstreamer1-plugins-bad-free
     -y
-  - dnf downgrade -y gstreamer1-plugins-good-1.20.0-1.fc36
   - >
     CFLAGS='-O2 -pipe -g -D_FORTIFY_SOURCE=0'
     CXXFLAGS='-O2 -pipe -g -D_FORTIFY_SOURCE=0'

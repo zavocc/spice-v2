@@ -146,3 +146,15 @@
     ...
     fun:g_tls_client_connection_new
 }
+
+{
+    fedora_38_pthread_leak
+    Memcheck:Leak
+    match-leak-kinds: possible
+    fun:calloc
+    ...
+    fun:allocate_dtv
+    fun:_dl_allocate_tls
+    ...
+    fun:pthread_create@@GLIBC_2.34
+}
