@@ -104,26 +104,26 @@ distcheck:
 makecheck-centos:
   before_script:
     - dnf install -y 'dnf-command(config-manager)'
-    - dnf config-manager --set-enabled powertools
+    - dnf config-manager --set-enabled crb
     - >
-      dnf install git libtool make libasan orc-devel glib-networking
+      dnf install git libasan orc-devel glib-networking
       gcc glib2-devel diffutils
       opus-devel pixman-devel openssl-devel libjpeg-devel
-      libcacard-devel cyrus-sasl-devel lz4-devel
+      cyrus-sasl-devel lz4-devel
       gstreamer1-devel gstreamer1-plugins-base-devel
       git-core python3-pyparsing python3-six python3
-      meson gcc-c++ autoconf-archive
+      meson gcc-c++
       -y
     - *protocol
-  image: quay.io/centos/centos:stream8
+  image: quay.io/centos/centos:stream9
   script:
   - >
     CFLAGS='-O2 -pipe -g -fsanitize=address -fno-omit-frame-pointer -Wframe-larger-than=40920'
     CXXFLAGS='-O2 -pipe -g -fsanitize=address -fno-omit-frame-pointer -Wframe-larger-than=40920'
     LDFLAGS='-fsanitize=address -lasan'
-    ./autogen.sh --enable-werror
-  - make
-  - make -C server check || (cat server/tests/test-suite.log && exit 1)
+    meson --buildtype=release --werror build || (cat build/meson-logs/meson-log.txt && exit 1)
+  - ninja -C build
+  - (cd build && meson test) || (cat build/meson-logs/testlog.txt && exit 1)
 
 # Same as meson-makecheck job but use a Debian i386 image,
 # this in order to test a 32 bit machine
