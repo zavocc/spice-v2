@@ -21,6 +21,7 @@ find . -name .gitignore -delete
 rm -rf \
 build-aux/useless-if-before-free \
 build-aux/vc-list-files \
+build-aux/meson-win-wrapper.txt \
 cfg.mk \
 docs/how_to_release.md \
 docs/manual/images/pepper.png \

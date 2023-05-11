@@ -163,18 +163,18 @@ makecheck-windows:
     mingw64-openssl mingw64-glib2 mingw64-glib-networking mingw64-libjpeg-turbo
     mingw64-pixman mingw64-opus mingw64-winpthreads mingw64-zlib
     mingw64-gstreamer1-plugins-base mingw64-gstreamer1-plugins-good mingw64-orc
-    meson
   - mkdir spice-protocol/build
   - (cd spice-protocol/build && mingw64-meson --werror && ninja install)
-  - NOCONFIGURE=yes ./autogen.sh
-  - mingw64-configure
-  - mingw64-make
+  - >
+    mingw64-meson --buildtype=release -Dlz4=false -Dsasl=false
+    --cross-file build-aux/meson-win-wrapper.txt build
+  - ninja -C build
   - export G_TLS_GNUTLS_PRIORITY="NORMAL:%COMPAT"
   - export WINEPATH='Z:\usr\x86_64-w64-mingw32\sys-root\mingw\bin'
   - export LANG=en_US.UTF-8
   # Remove configuration otherwise OpenSSL initialization will fail
   - rm -f /usr/x86_64-w64-mingw32/sys-root/mingw/etc/pki/tls/openssl.cnf
-  - (cd server && exec mingw64-make LOG_COMPILE=wine check) || (cat server/tests/test-suite.log && exit 1)
+  - (cd build && exec meson test --suite spice -t 5) || (cat build/meson-logs/testlog.txt && exit 1)
 
 websocket-autobahn:
   before_script:
