@@ -25,6 +25,10 @@
 
 SPICE_BEGIN_DECLS
 
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(SSL_OP_NO_RENEGOTIATION) && defined(SSL_OP_NO_CLIENT_RENEGOTIATION)
+#define SSL_OP_NO_RENEGOTIATION SSL_OP_NO_CLIENT_RENEGOTIATION
+#endif
+
 typedef void (*AsyncReadDone)(void *opaque);
 typedef void (*AsyncReadError)(void *opaque, int err);
 
