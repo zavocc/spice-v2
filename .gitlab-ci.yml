@@ -11,7 +11,7 @@ before_script:
     dconf gcc-c++ autoconf-archive
     -y
   - &protocol >
-    git clone ${CI_REPOSITORY_URL/spice.git/spice-protocol.git} &&
+    git clone --depth=1 ${CI_REPOSITORY_URL/spice.git/spice-protocol.git} &&
     meson setup --buildtype=release spice-protocol build-spice-protocol --prefix=/usr --werror &&
     ninja -C build-spice-protocol install &&
     rm -rf build-spice-protocol
