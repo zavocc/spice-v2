@@ -62,7 +62,7 @@ meson-options:
   script:
   - git clean -fdx
   - git submodule foreach --recursive git clean -fdx
-  - meson --buildtype=release --werror -Dstatistics=true -Dsasl=false build
+  - meson --buildtype=release --werror -Dstatistics=true -Dsasl=false -Dlz4=false -Dtests=false build
   - ninja -C build
   - (cd build && meson test) || (cat build/meson-logs/testlog.txt && exit 1)
 
