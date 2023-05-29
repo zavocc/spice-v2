@@ -17,7 +17,9 @@
 */
 #include <config.h>
 
+#ifndef _WIN32
 #include <arpa/inet.h>
+#endif
 #ifdef USE_SMARTCARD
 #include <libcacard.h>
 #endif
