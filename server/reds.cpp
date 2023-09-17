@@ -3478,7 +3478,7 @@ err:
 }
 
 static const char default_renderer[] = "sw";
-#if defined(HAVE_GSTREAMER_1_0) || defined(HAVE_GSTREAMER_0_10)
+#if defined(HAVE_GSTREAMER_1_0)
 #define GSTREAMER_CODECS "gstreamer:mjpeg;gstreamer:h264;gstreamer:vp8;gstreamer:vp9;"
 #else
 #define GSTREAMER_CODECS ""
@@ -3589,7 +3589,7 @@ static const EnumNames video_encoder_names[] = {
 
 static const new_video_encoder_t video_encoder_procs[] = {
     &mjpeg_encoder_new,
-#if defined(HAVE_GSTREAMER_1_0) || defined(HAVE_GSTREAMER_0_10)
+#if defined(HAVE_GSTREAMER_1_0)
     &gstreamer_encoder_new,
 #else
     nullptr,

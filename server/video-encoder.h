@@ -200,7 +200,7 @@ VideoEncoder* mjpeg_encoder_new(SpiceVideoCodecType codec_type,
                                 VideoEncoderRateControlCbs *cbs,
                                 bitmap_ref_t bitmap_ref,
                                 bitmap_unref_t bitmap_unref);
-#if defined(HAVE_GSTREAMER_1_0) || defined(HAVE_GSTREAMER_0_10)
+#if defined(HAVE_GSTREAMER_1_0)
 VideoEncoder* gstreamer_encoder_new(SpiceVideoCodecType codec_type,
                                     uint64_t starting_bit_rate,
                                     VideoEncoderRateControlCbs *cbs,

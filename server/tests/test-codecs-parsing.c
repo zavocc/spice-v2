@@ -28,7 +28,7 @@ static void codecs_good(void)
         "spice:mjpeg;;;",
         "spice:mjpeg;;spice:mjpeg;;;",
         ";;spice:mjpeg;;spice:mjpeg;;;",
-#if defined(HAVE_GSTREAMER_1_0) || defined(HAVE_GSTREAMER_0_10)
+#if defined(HAVE_GSTREAMER_1_0)
         "gstreamer:mjpeg;gstreamer:h264;gstreamer:vp8;",
         ";;spice:mjpeg;;gstreamer:mjpeg;gstreamer:h264;gstreamer:vp8;",
 #endif
@@ -122,7 +122,7 @@ static void codecs_bad(void)
             "*spice: invalid encoder:codec value*",
             TRUE,
         },
-#if !defined(HAVE_GSTREAMER_1_0) && !defined(HAVE_GSTREAMER_0_10)
+#if !defined(HAVE_GSTREAMER_1_0)
         {
             "gstreamer:mjpeg",
             G_LOG_LEVEL_WARNING,

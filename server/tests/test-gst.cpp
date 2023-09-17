@@ -69,56 +69,8 @@ typedef struct {
     SpiceBitmap *bitmap;
 } TestFrame;
 
-#ifdef HAVE_GSTREAMER_0_10
-
-#define VIDEOCONVERT "ffmpegcolorspace"
-#define BGRx_CAPS "caps=video/x-raw-rgb,bpp=32,depth=24,blue_mask=-16777216,green_mask=16711680,red_mask=65280"
-
-typedef GstBuffer GstSample;
-#define gst_sample_get_buffer(s) (s)
-#define gst_sample_get_caps(s) GST_BUFFER_CAPS(s)
-#define gst_sample_unref(s) gst_buffer_unref(s)
-#define gst_app_sink_pull_sample(s) gst_app_sink_pull_buffer(s)
-typedef struct {
-    uint8_t *data;
-} GstMapInfo;
-#define GST_MAP_READ 1
-static void
-gst_buffer_unmap(GstBuffer *buffer, GstMapInfo *mapinfo)
-{ }
-
-static gboolean
-gst_buffer_map(GstBuffer *buffer, GstMapInfo *mapinfo, int flags)
-{
-    mapinfo->data = GST_BUFFER_DATA(buffer);
-    return mapinfo->data != NULL;
-}
-
-static GstBuffer*
-gst_buffer_new_wrapped_full(int flags SPICE_GNUC_UNUSED, gpointer data, gsize maxsize,
-                            gsize offset, gsize size,
-                            gpointer user_data, GDestroyNotify notify)
-{
-    GstBuffer *buffer = gst_buffer_new();
-
-    buffer->malloc_data = user_data;
-    GST_BUFFER_FREE_FUNC(buffer) = notify;
-    GST_BUFFER_DATA(buffer) = (uint8_t *) data + offset;
-    GST_BUFFER_SIZE(buffer) = size;
-
-    return buffer;
-}
-
-#define GST_MEMORY_FLAG_PHYSICALLY_CONTIGUOUS 0
-
-#define gst_bus_set_sync_handler(bus, proc, param, destroy) G_STMT_START {\
-    SPICE_VERIFY(destroy == NULL); \
-    gst_bus_set_sync_handler(bus, proc, param); \
-} G_STMT_END
-#else
 #define VIDEOCONVERT "videoconvert"
 #define BGRx_CAPS "caps=video/x-raw,format=BGRx"
-#endif
 
 typedef GstFlowReturn (*SampleProc)(GstSample *sample, void *param);
 
@@ -310,11 +262,7 @@ static const EncoderInfo encoder_infos[] = {
     { "gstreamer:vp9",   gstreamer_encoder_new, SPICE_VIDEO_CODEC_TYPE_VP9,
       "caps=video/x-vp9", "vp9dec" },
     { "gstreamer:h264",  gstreamer_encoder_new, SPICE_VIDEO_CODEC_TYPE_H264,
-#ifdef HAVE_GSTREAMER_0_10
-      "", "h264parse ! ffdec_h264" },
-#else
       "", "h264parse ! avdec_h264" },
-#endif
     { NULL, NULL, SPICE_VIDEO_CODEC_TYPE_ENUM_END, NULL, NULL }
 };
 
@@ -698,9 +646,7 @@ pipeline_send_raw_data(TestPipeline *pipeline, VideoBuffer *video_buffer)
                                     video_buffer, (void (*)(void*)) video_buffer_release);
 
     GST_BUFFER_DURATION(buffer) = GST_CLOCK_TIME_NONE;
-#ifndef HAVE_GSTREAMER_0_10
     GST_BUFFER_DTS(buffer) = GST_CLOCK_TIME_NONE;
-#endif
 
     if (gst_app_src_push_buffer(pipeline->appsrc, buffer) != GST_FLOW_OK) {
         g_printerr("GStreamer error: unable to push frame of size %u\n", video_buffer->size);

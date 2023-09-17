@@ -94,7 +94,7 @@ dnl Check optional features
 SPICE_CHECK_SMARTCARD
 
 AC_ARG_ENABLE(gstreamer,
-              AS_HELP_STRING([--enable-gstreamer=@<:@auto/0.10/1.0/yes/no@:>@],
+              AS_HELP_STRING([--enable-gstreamer=@<:@auto/1.0/yes/no@:>@],
                              [Enable GStreamer support]),,
               [enable_gstreamer="auto"])
 
@@ -112,20 +112,7 @@ if test "x$enable_gstreamer" != "xno" && test "x$enable_gstreamer" != "x0.10"; t
     ])
 fi
 
-if test "x$enable_gstreamer" != "xno" && test "x$enable_gstreamer" != "x1.0"; then
-    SPICE_CHECK_GSTREAMER(GSTREAMER_0_10, 0.10, [gstreamer-0.10 gstreamer-base-0.10 gstreamer-app-0.10 gstreamer-video-0.10],
-        [enable_gstreamer="0.10"
-         SPICE_CHECK_GSTREAMER_ELEMENTS($GST_INSPECT_0_10, [gst-plugins-base 0.10], [appsrc appsink])
-         SPICE_CHECK_GSTREAMER_ELEMENTS($GST_INSPECT_0_10, [gstreamer-ffmpeg 0.10], [ffmpegcolorspace ffenc_mjpeg])
-         SPICE_CHECK_GSTREAMER_ELEMENTS($GST_INSPECT_0_10, [gst-plugins-bad 0.10], [vp8enc])
-         SPICE_CHECK_GSTREAMER_ELEMENTS($GST_INSPECT_0_10, [gst-plugins-ugly 0.10], [x264enc])
-        ],
-        [if test "x$enable_gstreamer" = "x0.10"; then
-             AC_MSG_ERROR([GStreamer 0.10 support requested but not found. You may set GSTREAMER_0_10_CFLAGS and GSTREAMER_0_10_LIBS to avoid the need to call pkg-config.])
-         fi
-    ])
-fi
-AM_CONDITIONAL(HAVE_GSTREAMER, test "x$have_gstreamer_0_10" = "xyes" || test "x$have_gstreamer_1_0" = "xyes")
+AM_CONDITIONAL(HAVE_GSTREAMER, test "x$have_gstreamer_1_0" = "xyes")
 AM_CONDITIONAL(HAVE_GSTREAMER_1_0, test "x$have_gstreamer_1_0" = "xyes")
 
 AS_IF([test "x$enable_gstreamer" = "xyes"],
@@ -137,7 +124,7 @@ AS_IF([test x"$missing_gstreamer_elements" = xyes],
     [SPICE_WARNING([The GStreamer video encoder can be built but may not work.])
 ])
 
-if test "x$have_gstreamer_0_10" = "xyes" || test "x$have_gstreamer_1_0" = "xyes"; then
+if test "x$have_gstreamer_1_0" = "xyes"; then
     PKG_CHECK_MODULES(ORC, orc-0.4)
     AC_SUBST(ORC_CFLAGS)
     AC_SUBST(ORC_LIBS)

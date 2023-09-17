@@ -138,11 +138,7 @@ if spice_server_gst_version != 'no'
   endforeach
   spice_server_deps += dependency('orc-0.4')
 
-  gst_def = 'HAVE_GSTREAMER'
-  if spice_server_gst_version == '1.0'
-    gst_def = 'HAVE_GSTREAMER_1_0'
-  endif
-
+  gst_def = 'HAVE_GSTREAMER_1_0'
   spice_server_config_data.set(gst_def, '1')
   spice_server_has_gstreamer = true
 endif

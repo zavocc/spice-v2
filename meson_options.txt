@@ -1,6 +1,6 @@
 option('gstreamer',
     type : 'combo',
-    choices : ['1.0', '0.10', 'no'],
+    choices : ['1.0', 'no'],
     description : 'Enable gstreamer support')
 
 option('lz4',
