@@ -364,8 +364,6 @@ handle_dev_del_memslot(RedWorker* worker, RedWorkerMessageDelMemslot* msg)
 static void
 handle_dev_destroy_surface_wait(RedWorker* worker, RedWorkerMessageDestroySurfaceWait* msg)
 {
-    spice_return_if_fail(msg->surface_id == 0);
-
     flush_all_qxl_commands(worker);
     display_channel_destroy_surface_wait(worker->display_channel, msg->surface_id);
 }

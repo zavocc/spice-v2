@@ -267,6 +267,11 @@ void spice_qxl_destroy_surface_wait(QXLInstance *instance, uint32_t surface_id)
 {
     RedWorkerMessageDestroySurfaceWait payload;
 
+    if (surface_id != 0) {
+        spice_warning("Invalid surface_id != 0: %u", surface_id);
+        return;
+    }
+
     payload.surface_id = surface_id;
     instance->st->send_message(payload);
 }
