@@ -26,10 +26,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-#include <gio/gio.h>
+
 #ifndef _WIN32
-#include <gio/gunixsocketaddress.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 #endif
+
+#include <openssl/bio.h>
+#include <openssl/ssl.h>
 
 #include "test-glib-compat.h"
 
@@ -39,11 +44,6 @@
 #define BASE_PORT 5728
 
 #define PKI_DIR SPICE_TOP_SRCDIR "/server/tests/pki/"
-
-static bool error_is_set(GError **error)
-{
-    return ((error != NULL) && (*error != NULL));
-}
 
 typedef struct {
     SpiceCoreInterface *core;
@@ -93,91 +93,82 @@ static void test_event_loop_run(TestEventLoop *event_loop)
     basic_event_loop_mainloop();
 }
 
-static GIOStream *fake_client_connect(GSocketConnectable *connectable, GError **error)
+static BIO *fake_client_connect(const char *hostname, int port, bool use_tls)
 {
-    GSocketClient *client;
-    GSocketConnection *connection;
+    if (port < 0) {
+#ifndef _WIN32
+        int sock = socket(AF_UNIX, SOCK_STREAM, 0);
+        struct sockaddr_un addr;
+        memset(&addr, 0, sizeof(addr));
+        addr.sun_family = AF_UNIX;
+        strcpy(addr.sun_path, hostname);
+        if (connect(sock, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+            close(sock);
+            return NULL;
+        }
+        return BIO_new_fd(sock, 0);
+#else
+        g_assert_not_reached();
+#endif
+    }
 
-    client = g_socket_client_new();
-    connection = g_socket_client_connect(client, connectable, NULL, error);
+    char con_buf[256];
+    g_snprintf(con_buf, sizeof(con_buf), "%s:%d", hostname, port);
 
-    g_object_unref(client);
+    SSL_CTX *ctx = NULL;
+    BIO *bio;
+    if (use_tls) {
+        ctx = SSL_CTX_new(TLS_client_method());
+        g_assert_nonnull(ctx);
 
-    return G_IO_STREAM(connection);
+        bio = BIO_new_ssl_connect(ctx);
+        g_assert_nonnull(bio);
+
+        BIO_set_conn_hostname(bio, con_buf);
+    } else {
+        bio = BIO_new_connect(con_buf);
+        g_assert_nonnull(bio);
+    }
+
+    if (BIO_do_connect(bio) <= 0) {
+        BIO_free(bio);
+        bio = NULL;
+    }
+
+    SSL_CTX_free(ctx);
+    return bio;
 }
 
-static GIOStream *fake_client_connect_tls(GSocketConnectable *connectable, GError **error)
-{
-    GSocketClient *client;
-    GSocketConnection *connection;
-    GIOStream *tls_connection;
-
-    client = g_socket_client_new();
-    connection = g_socket_client_connect(client, connectable, NULL, error);
-    g_assert_no_error(*error);
-    tls_connection = g_tls_client_connection_new(G_IO_STREAM(connection),
-                                                 connectable,
-                                                 error);
-    g_assert_no_error(*error);
-    /* Disable all certificate checks as our test setup is known to be invalid */
-    g_tls_client_connection_set_validation_flags(G_TLS_CLIENT_CONNECTION(tls_connection), (GTlsCertificateFlags) 0);
-
-    g_object_unref(connection);
-    g_object_unref(client);
-
-    return tls_connection;
-}
-
-static void check_magic(GIOStream *io_stream, GError **error)
+static void check_magic(BIO *bio)
 {
     uint8_t buffer[4];
-    gsize bytes_read;
-    gsize bytes_written;
-    GInputStream *input_stream;
-    GOutputStream *output_stream;
 
     /* send dummy data to trigger a response from the server */
-    output_stream = g_io_stream_get_output_stream(io_stream);
     memset(buffer, 0xa5, G_N_ELEMENTS(buffer));
-    g_output_stream_write_all(output_stream, buffer, G_N_ELEMENTS(buffer), &bytes_written, NULL, error);
-    if (error_is_set(error)) {
-        return;
-    }
+    g_assert_cmpint(BIO_write(bio, buffer, G_N_ELEMENTS(buffer)), ==, G_N_ELEMENTS(buffer));
 
-    input_stream = g_io_stream_get_input_stream(io_stream);
-    g_input_stream_read_all(input_stream, buffer, G_N_ELEMENTS(buffer), &bytes_read, NULL, error);
-    if (error_is_set(error)) {
-        return;
-    }
-    g_assert_cmpuint(bytes_read, ==, G_N_ELEMENTS(buffer));
+    g_assert_cmpint(BIO_read(bio, buffer, G_N_ELEMENTS(buffer)), ==, G_N_ELEMENTS(buffer));
     g_assert_cmpint(memcmp(buffer, "REDQ", 4), ==, 0);
 }
 
 typedef struct
 {
-    GSocketConnectable *connectable;
+    const char *hostname;
+    int port;
     bool use_tls;
     TestEventLoop *event_loop;
 } ThreadData;
 
 static gpointer check_magic_thread(gpointer data)
 {
-    GError *error = NULL;
     ThreadData *thread_data = (ThreadData*) data;
-    GSocketConnectable *connectable = G_SOCKET_CONNECTABLE(thread_data->connectable);
-    GIOStream *stream;
+    BIO *bio;
 
-    if (thread_data->use_tls) {
-        stream = fake_client_connect_tls(connectable, &error);
-    } else {
-        stream = fake_client_connect(connectable, &error);
-    }
-    g_assert_no_error(error);
-    check_magic(stream, &error);
-    g_assert_no_error(error);
+    bio = fake_client_connect(thread_data->hostname, thread_data->port, thread_data->use_tls);
+    g_assert_nonnull(bio);
+    check_magic(bio);
 
-    g_object_unref(stream);
-    g_object_unref(connectable);
+    BIO_free_all(bio);
 
     test_event_loop_quit(thread_data->event_loop);
     g_free(thread_data);
@@ -187,17 +178,10 @@ static gpointer check_magic_thread(gpointer data)
 
 static gpointer check_no_connect_thread(gpointer data)
 {
-    GError *error = NULL;
     ThreadData *thread_data = (ThreadData*) data;
-    GSocketConnectable *connectable = G_SOCKET_CONNECTABLE(thread_data->connectable);
-    GIOStream *stream;
 
-    stream = fake_client_connect(connectable, &error);
-    g_assert_nonnull(error);
-    g_assert_null(stream);
-    g_clear_error(&error);
-
-    g_object_unref(connectable);
+    BIO *bio = fake_client_connect(thread_data->hostname, thread_data->port, false);
+    g_assert_null(bio);
 
     test_event_loop_quit(thread_data->event_loop);
     g_free(thread_data);
@@ -213,16 +197,15 @@ static GThread *fake_client_new(GThreadFunc thread_func,
     ThreadData *thread_data = g_new0(ThreadData, 1);
 
     if (port == -1) {
-#ifndef _WIN32
-        thread_data->connectable = G_SOCKET_CONNECTABLE(g_unix_socket_address_new(hostname));
-#else
+#ifdef _WIN32
         g_assert_not_reached();
 #endif
     } else {
         g_assert_cmpuint(port, >, 0);
         g_assert_cmpuint(port, <, 65536);
-        thread_data->connectable = g_network_address_new(hostname, port);
     }
+    thread_data->hostname = hostname;
+    thread_data->port = port;
     thread_data->use_tls = use_tls;
     thread_data->event_loop = event_loop;
 
