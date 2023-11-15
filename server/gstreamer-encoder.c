@@ -861,13 +861,50 @@ static const gchar* get_gst_codec_name(const SpiceGstEncoder *encoder)
     }
 }
 
+/* At this time, only the following formats are supported by x264enc. */
+static const char valid_formats[][10] = {
+    { "Y444" },
+    { "Y42B" },
+    { "I420" },
+    { "YV12" },
+    { "NV12" },
+    { "GRAY8" },
+    { "Y444_10LE" },
+    { "I422_10LE" },
+    { "I420_10LE" },
+};
+
+static gpointer get_pref_format_once(gpointer data)
+{
+    const gchar *pref_format = getenv("SPICE_CONVERTER_PREFERRED_FORMAT");
+    int i;
+
+    if (pref_format) {
+        for (i = 0; i < G_N_ELEMENTS(valid_formats); i++) {
+            if (strcmp(valid_formats[i], pref_format) == 0) {
+                return g_strdup_printf("videoconvert ! video/x-raw,format=%s",
+                                       pref_format);
+            }
+        }
+    }
+    return g_strdup("videoconvert");
+}
+
+static gchar *get_gst_converter(void)
+{
+    static GOnce gst_once = G_ONCE_INIT;
+
+    g_once(&gst_once, get_pref_format_once, NULL);
+    return g_strdup(gst_once.retval);
+}
+
 static gboolean create_pipeline(SpiceGstEncoder *encoder)
 {
-    const gchar *converter = "videoconvert";
     const gchar* gstenc_name = get_gst_codec_name(encoder);
     if (!gstenc_name) {
         return FALSE;
     }
+    gchar* converter = get_gst_converter();
     gchar* gstenc_opts;
     switch (encoder->base.codec_type)
     {
@@ -910,6 +947,7 @@ static gboolean create_pipeline(SpiceGstEncoder *encoder)
     default:
         /* gstreamer_encoder_new() should have rejected this codec type */
         spice_warning("unsupported codec type %d", encoder->base.codec_type);
+        g_free(converter);
         return FALSE;
     }
 
@@ -919,6 +957,7 @@ static gboolean create_pipeline(SpiceGstEncoder *encoder)
                                   converter, gstenc_name, gstenc_opts);
     spice_debug("GStreamer pipeline: %s", desc);
     encoder->pipeline = gst_parse_launch_full(desc, NULL, GST_PARSE_FLAG_FATAL_ERRORS, &err);
+    g_free(converter);
     g_free(gstenc_opts);
     g_free(desc);
     if (!encoder->pipeline || err) {
