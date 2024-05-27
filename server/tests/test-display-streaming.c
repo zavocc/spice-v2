@@ -215,7 +215,7 @@ static void get_stream_commands(Command *commands, int num_commands,
 static void get_commands(Command **commands, int *num_commands)
 {
     *num_commands = NUM_COMMANDS * 2;
-    *commands = (Command*) calloc(sizeof(Command), *num_commands);
+    *commands = (Command*) calloc(*num_commands, sizeof(Command));
 
     get_stream_commands(*commands, NUM_COMMANDS, create_frame1);
     get_stream_commands((*commands) + NUM_COMMANDS, NUM_COMMANDS, create_frame2);
