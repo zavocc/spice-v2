@@ -150,6 +150,8 @@ makecheck-debian32:
 
 # Same as makecheck job but use Windows build
 makecheck-windows:
+  # Set to fedora 40 for now because mingw64-openssl-3.2.2-2 breaks TLS
+  image: fedora:40
   script:
   - >
     dnf install -y
