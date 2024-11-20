@@ -136,7 +136,10 @@ makecheck-debian32:
       python3-six python3-pyparsing liborc-0.4-dev meson git
       g++ autoconf-archive
     - *protocol
-  image: i386/debian:latest
+  image:
+    name: i386/debian:latest
+    docker:
+      platform: i386
   script:
   - git clean -fdx
   - git submodule foreach --recursive git clean -fdx
