@@ -139,7 +139,7 @@ makecheck-debian32:
   image:
     name: i386/debian:latest
     docker:
-      platform: i386
+      platform: linux/386
   script:
   - git clean -fdx
   - git submodule foreach --recursive git clean -fdx
